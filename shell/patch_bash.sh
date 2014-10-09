@@ -6,6 +6,8 @@ one=$(bash --version | grep 'version [0-9]\.' | awk '{print $4}' | awk -F'.' '{p
 tow=$(bash --version | grep 'version [0-9]\.' | awk '{print $4}' | awk -F'.' '{print $2}')
 
 wget http://ftp.gnu.org/gnu/bash/bash-${one}.${tow}.tar.gz
+tar zxf bash-${one}.${tow}.tar.gz
+cd bash-${one}.${tow}
 
 #get now
 curl -o bash.html http://ftp.gnu.org/gnu/bash/bash-${one}.${tow}-patches/
