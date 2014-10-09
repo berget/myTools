@@ -7,6 +7,7 @@ tow=$(bash --version | grep 'version [0-9]\.' | awk '{print $4}' | awk -F'.' '{p
 
 wget http://ftp.gnu.org/gnu/bash/bash-${one}.${tow}.tar.gz
 tar zxf bash-${one}.${tow}.tar.gz
+rm bash-${one}.${tow}.tar.gz
 cd bash-${one}.${tow}
 
 #get now
@@ -18,7 +19,6 @@ max=$(cat bash.html |grep '<a href=\"bash[[:alnum:]]' | awk -F'=' '{print $4}' |
 for i in $(seq -f "%03g" 1 $max );
 do
 echo "Getting ... http://ftp.gnu.org/gnu/bash/bash-${one}.${tow}-patches/bash${one}${tow}-$i";
-curl "http://ftp.gnu.org/gnu/bash/bash-${one}.${tow}-patches/bash${one}${tow}-$i"
-#| patch -p0 ;
+curl "http://ftp.gnu.org/gnu/bash/bash-${one}.${tow}-patches/bash${one}${tow}-$i" | patch -p0 ;
 
 done
