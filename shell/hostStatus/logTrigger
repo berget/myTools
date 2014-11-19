@@ -1,0 +1,33 @@
+#!/bin/bash
+
+
+
+function schema(){
+    inotifywait='/usr/bin/inotifywait'
+
+    local log="$1"
+    local keyword="$2"
+
+    #定位目前當前讀取行數，default值為1~最大行數
+    if [ -f $log ];then
+        min=1
+	max=$( wc $log | awk '{print $1}' )
+
+	while $inotifywait  -q -e modify $log > /dev/null; do
+	        sleep 1
+        	#清除畫面
+	        echo -e "\033[2J"
+
+        	#顯示目前訊息
+	        nl $log | sed -n "${min},${max}p" | grep "${keyword}"
+        	#重新定位抓取行數
+	        min=$(nl $log | sed -n "${min},${max}p" | grep "${keyword}" | tail -n1 | awk '{print $1}')
+        	max=$(wc $log -l | awk '{print $1}')
+
+	done
+    fi
+
+}
+
+
+schema /var/log/auth.log publickey 
