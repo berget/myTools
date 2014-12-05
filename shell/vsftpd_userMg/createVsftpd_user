@@ -1,0 +1,351 @@
+#!/bin/bash
+
+
+
+path_vsftpDB='/etc/vsftpd/vsftpd-virtual-user.db';
+user_table='vsftp_user';
+log_table='useLog';
+
+
+function usage(){
+	
+	echo "NAME"
+	echo -e "\tvsftpd user 建立程式"
+	echo "SYNOPSIS"
+	echo -e "\t[OPTION]... [FILE]..."
+	echo "DESCRIPTION" 
+	echo -e "-i,\n\t 使用此參數進入互動模式";
+	echo -e "-a,\n\t 使用此參數進入自動化程序";
+	echo -e "-f,\n\t 擁有user list的檔案";
+	echo -e "-o,\n\t 三個選項\tadd [批次新增user] \tedit [批次編輯user]\tdel [批次刪除user]";
+	exit 1;
+}
+
+function menu(){
+
+clear
+echo "選擇模式";
+echo '1) 查看目前user list';
+echo '2) 新增user';
+echo '3) 編輯user';
+echo '4) 刪除user';
+echo '5) 寫入vsftpd DB檔';
+echo '6) exit';
+
+read flag;
+	case $flag in
+	'1')
+		user_list;
+	;;
+	'2')
+		add_user;
+	;;
+	'3')
+		edit_user;
+	;;
+	'4')
+		del_user;
+	;;
+	'5')
+		write_vsftpd;
+	;;
+	'6')
+		QUIT;
+	;;
+	*)
+		exit 99;
+	;;
+	esac
+}
+
+function user_list(){
+	
+        list=$(sqlite3 $path_localDB "select * from $user_table";);
+	if [ -z "$list" ];then
+		echo "目前尚無資料";
+	else
+		#取出目前user 清單
+		sqlite3 -column $path_localDB "select * from $user_table";
+	fi
+
+
+	echo '返回主選單[Y/n]';
+	read x
+	if [[ "$x" == 'Y' || "$x" == 'y' ]]; then
+		menu
+	else
+		QUIT
+	fi
+}
+
+
+function add_user(){
+		
+	local vsUSER="$1";
+	local PASS="$2";
+	#紀錄時間戳記
+	TIME=$(date +%s);
+
+	#vsUSER and PASS 參數為空值, 為互動模式進入
+	if [[ -z $vsUSER && -z $PASS ]]; then
+		echo '手動新增user';
+		read -p "輸入使用者帳號：" vsUSER;
+		read -s -p "密碼：" PASS;
+	fi
+	
+	#判斷目前user name是否在資料庫中
+	exec 6<<EOF
+	select v_user from "$user_table" where v_user="$vsUSER";
+EOF
+	x=$(sqlite3 $path_localDB <&6)
+
+	#如果為空就執行建立user的語法
+	if [[ -z $x ]]; then
+		sqlite3 $path_localDB <<EOF
+		insert into "$user_table" (v_user, v_pass, v_time) values ("$vsUSER", "$PASS", "$TIME");
+EOF
+	else
+		echo "$vsUSER 該此用者已建立"
+	fi
+
+	#非自動模式會返回主選單
+	if [[ "$3" != 'auto' ]]; then
+		#write_vsftpd;
+
+		#記錄手動新增使用者
+		logging "Manually add user: $vsUSER"
+
+		menu
+	fi
+	
+	#記錄自動新增使用者
+	logging "Automatic add user list"
+
+	#關閉查詢
+	6<&-
+}
+
+function edit_user(){
+
+	local vsUSER="$1";
+	local PASS="$2";
+		
+	#vsUSER and PASS 參數為空值, 為互動模式進入
+	if [[ -z $vsUSER ]]; then
+		sqlite3 -column $path_localDB "select * from $user_table";
+		echo '手動編輯user密碼';
+		read -p "輸入使用者帳號：" vsUSER;
+                read -s -p "密碼：" PASS;
+	fi
+
+	echo "$vsUSER  $PASS"
+	sqlite3 $path_localDB <<EOF
+	update "$user_table" set v_pass="$PASS" where v_user="$vsUSER";
+EOF
+	#非自動模式會返回主選單
+	if [[ "$3" != 'auto' ]]; then
+		#write_vsftpd;
+		
+		#記錄手動修改使用者
+		logging "Manually edit $vsUSER password"
+		menu
+	fi
+	
+	#記錄批次修改使用者
+	logging "Automatic edit $vsUSER password"
+	
+}
+
+
+function del_user(){
+	
+	local vsUSER="$1";
+	
+	#vsUSER參數為空值, 為互動模式進入
+	if [[ -z $vsUSER ]]; then	
+		sqlite3 -column $path_localDB "select * from $user_table";	
+		echo '手動刪除user';
+		read -p "輸入使用者帳號：" vsUSER;
+	fi
+	
+	echo "刪除 $vsUSER";
+	sqlite3 $path_localDB <<EOF
+	delete from "$user_table" where v_user="$vsUSER";
+EOF
+	#互動模式會返回主選單
+	if [[ "$2" != 'auto' ]]; then
+		#write_vsftpd;
+		
+		#記錄手動刪除使用者
+		logging "Manually del $vsUSER "
+
+		menu	
+	fi
+	#記錄批次刪除使用者
+	logging "Automatic del USER list"
+}
+
+
+function auto_control(){
+
+	local FILES="$1";
+	local ctrlFlag="$2";
+	
+	if [[ -f $FILES ]];then
+		#判斷參數值，使用新增功能
+		if [[ "$ctrlFlag" == 'add' ]]; then
+			echo "下列帳號將使用預設密碼, 輸入預設密碼:";
+			read -s P;
+			if [[ -z $P ]];then
+				echo "請勿輸入空白";
+				exit 3;
+			else
+				for u in $(cat $FILES); do 
+					add_user $u $P auto;
+				done
+			fi
+			echo "使用者建立完成"
+		#判斷參數值，使用編輯功能
+		elif [[ "$ctrlFlag" == 'edit' ]]; then
+			echo "下列帳號將修改密碼, 請輸入密碼";
+			read -s P;
+			if [[ -z $P ]]; then
+				echo "請勿輸入空白";
+                                exit 3;
+			else
+				for u in $(cat $FILES); do
+					edit_user $u $P auto;
+				done
+			fi
+			echo "密碼修改完成";
+			
+		#判斷參數值，使用刪除功能
+		elif [[ "$ctrlFlag" == 'del' ]]; then
+			for u in $(cat $FILES); do
+				del_user $u auto;
+			done
+			echo "使用者刪除完成"
+		fi	
+	fi
+}
+
+function write_vsftpd(){
+
+	tmpfile=$(mktemp);
+
+	#列出資料庫的所有user跟pass, 寫入暫存檔案
+	exec 6<<EOF
+	select v_user, v_pass from "$user_table";
+EOF
+	for load in $(sqlite3 -column $path_localDB <&6); do
+		echo $load >> $tmpfile
+	done
+
+	
+	echo "寫入vsftpd DB"
+	#刪除既有的vsftpd資料庫
+	rm $path_vsftpDB -f	
+	db_load -T -t hash -f $tmpfile $path_vsftpDB
+	chmod 660 $path_vsftpDB
+	#刪除暫存檔
+	rm $tmpfile -f
+	service vsftpd restart
+
+	logging "vsftpd service restart"
+	QUIT;
+}
+
+#建立sqlite資料庫
+function create(){
+
+        if [ ! -f "$path_localDB" ];then
+        #       sqlite3 tmp.db
+                local flag=''
+                echo "No DB, Are create DB?[Y/n]";
+                read flag
+
+                if [[ "$flag" == 'Y' || "$flag" == 'y' ]]; then
+                        sqlite3 $path_localDB "create table vsftp_user (id INTEGER PRIMARY KEY, v_user TEXT, v_pass TEXT, v_time TEXT);"
+                        sqlite3 $path_localDB "create table useLog (id INTEGER PRIMARY KEY,e_user TEXT, uselog TEXT, timelog TEXT);"
+                        echo "create DB";
+
+                elif [[ "$flag" == 'N' || "$flag" == 'n' ]]; then
+                        exit 5
+                fi
+        fi
+	
+	#紀錄建立db的時間
+	logging "New create sqlite3 DB user:$USER"	
+	exit 0;
+}
+
+function logging(){
+	
+	local event="$1";
+	
+	logTIME=$(date +%s);
+	sqlite3 $path_localDB <<EOF
+                insert into "$log_table" (e_user, uselog, timelog) values ("$USER", "$event", "$logTIME");
+EOF
+	
+	
+}
+
+
+function QUIT(){
+	echo "離開程式";
+	exit 0;
+}
+
+function main(){
+	if [[ "$1" != "${1##[-+]}" ]]; then
+		while getopts "f:o:aih" flag; do
+			#收集參數
+			case "$flag" in
+			f)
+			  tagF="$OPTARG";
+			;;
+			o)
+			  tagO="$OPTARG";
+			;;
+			a)
+			  tagA="auto";
+			;;
+			i)
+			  tagA="Interactive";
+			;;
+			*)
+			  usage;
+			　exit 1
+			;;
+			esac
+		done
+		
+		#判斷使用的模式
+		if [[ "$tagA" == 'auto' ]]; then
+			auto_control $tagF $tagO;
+		elif [[ "$tagA" == 'Interactive' ]]; then
+			menu;
+		fi
+
+ 		shift $((OPTIND-1))
+	else
+		usage
+	fi
+}
+
+
+###### main ######
+path_localDB='';
+
+if [[ -z $path_localDB ]]; then
+	echo "先設定path_localDB 存放路徑";
+	exit 2;
+fi
+
+if [[ ! -f $path_localDB ]]; then
+	create
+else
+	main $@	
+fi
+

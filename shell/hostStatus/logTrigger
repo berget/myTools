@@ -30,4 +30,4 @@ function schema(){
 }
 
 
-schema /var/log/auth.log publickey 
+schema /var/log/auth.log session
