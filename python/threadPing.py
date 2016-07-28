@@ -2,7 +2,9 @@
 
 import threading
 import subprocess
+import sys
 
+#setup thread
 class myThread(threading.Thread):
     def __init__(self, counter):
         threading.Thread.__init__(self)
@@ -20,20 +22,36 @@ def ping(threadName, IPnumber):
     stdout, stderr = formatCmd.communicate()
     if formatCmd.returncode > 0:
         pass
-        #print stderr
     else:
-        print stdout,
+        ipdata = stdout.split(' ')
+        print ipdata[3] + ipdata[5]
+
+        #print stdout,
 
 
 
 if __name__ == '__main__' :
-	
-	set_IP = '192.168.3.'
-	number = 255	
-	while number:
-		
-		IP = set_IP + str( number )
-		Thread1 = myThread( IP )
-		Thread1.start()
-		number -= 1
-	print "Exiting Main Thread"
+    
+    flag = 0
+    set_IP = ''
+    for n in sys.argv[1].split('.'):
+      try :
+          if type(int(n)) is int :
+             set_IP += n + '.'
+         flag += 1
+         if flag == 3 : break
+      except :
+          sys.exit('input error')
+          
+    print set_IP    
+
+    number = 255    
+    while number:
+        
+        IP = set_IP + str( number )
+        Thread1 = myThread( IP )
+        Thread1.start()
+
+        number -= 1
+    
+    print "Exiting Main Thread"
