@@ -26,9 +26,6 @@ def ping(threadName, IPnumber):
         ipdata = stdout.split(' ')
         print ipdata[3] + ipdata[5]
 
-        #print stdout,
-
-
 
 if __name__ == '__main__' :
     
@@ -53,5 +50,5 @@ if __name__ == '__main__' :
         Thread1.start()
 
         number -= 1
-    
+
     print "Exiting Main Thread"
