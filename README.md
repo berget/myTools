@@ -1,6 +1,9 @@
 myTools
 =======
 
+2016-07-28
+更新 threadPing.py - 改用輸入IP位置，來進行ip確認
+
 2014-12-5
 新增小工具 - createVsftpd_user
 
