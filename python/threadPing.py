@@ -33,7 +33,7 @@ if __name__ == '__main__' :
     set_IP = ''
     for n in sys.argv[1].split('.'):
       try :
-          if type(int(n)) is int :
+         if type(int(n)) is int :
              set_IP += n + '.'
          flag += 1
          if flag == 3 : break
